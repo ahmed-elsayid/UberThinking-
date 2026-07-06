@@ -1,0 +1,39 @@
+# ---------------------------------------------------------------------------
+# .gitignore
+# Purpose: Keep generated data, secrets, and environment-specific files out
+# of version control. Team members should never commit raw datasets, trained
+# models, or streaming output — these are large, environment-specific, and
+# regenerable from code.
+# ---------------------------------------------------------------------------
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+*.egg-info/
+
+# Environment / secrets
+.env
+
+# Spark
+spark-warehouse/
+metastore_db/
+derby.log
+checkpoint/
+
+# Data & model artifacts (regenerate, don't commit)
+data/raw/*
+!data/raw/README.md
+output/parquet/*
+!output/parquet/README.md
+models/*
+!models/README.md
+
+# IDE / OS
+.vscode/
+.idea/
+.DS_Store
+
+# Jupyter
+.ipynb_checkpoints/

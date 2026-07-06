@@ -1,0 +1,28 @@
+# ---------------------------------------------------------------------------
+# requirements.txt
+# Purpose: Pin the Python dependencies needed across all subsystems
+# (producer, streaming, ML, dashboard). Fill in exact versions once you
+# choose your Spark/Python version, to keep the whole team reproducible.
+#
+# Suggested packages (add version pins, e.g. pyspark==3.5.1, before use):
+# ---------------------------------------------------------------------------
+
+# --- Big Data / Spark ---
+# pyspark                 # Core Spark + Spark SQL + Structured Streaming + MLlib
+
+# --- Kafka ---
+# kafka-python            # Kafka producer/consumer client for Python
+
+# --- Dashboard ---
+# streamlit               # Interactive web dashboard
+# plotly                  # Charting library used inside Streamlit
+
+# --- Data handling / utilities ---
+# pandas                  # Local/small data manipulation (not for big data volumes)
+# python-dotenv           # Load .env configuration into environment variables
+
+# --- Testing ---
+# pytest                  # Unit testing framework
+
+# --- Optional ---
+# delta-spark             # Only if the team decides to adopt Delta Lake later
