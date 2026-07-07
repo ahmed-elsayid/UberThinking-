@@ -37,3 +37,53 @@ Consumed by:
 """
 
 # TODO: load_dotenv() and define config constants here.
+
+
+"""
+config.py
+---------
+Single source of truth for all environment-dependent settings (Kafka
+connection info, file paths, Spark app name, producer timing, etc.).
+Every other module imports from here instead of hardcoding values or
+reading os.environ directly.
+"""
+
+import os
+
+from dotenv import load_dotenv
+
+# Load variables from a .env file in the project root (if present).
+# Falls back to already-exported environment variables / defaults below.
+load_dotenv()
+
+
+def _get_float(name: str, default: float) -> float:
+    try:
+        return float(os.getenv(name, default))
+    except (TypeError, ValueError):
+        return default
+
+
+# --- Kafka ---
+KAFKA_BOOTSTRAP_SERVERS: str = os.getenv("KAFKA_BOOTSTRAP_SERVERS", "localhost:9092")
+KAFKA_TOPIC: str = os.getenv("KAFKA_TOPIC", "taxi_rides")
+
+# --- Spark ---
+SPARK_MASTER: str = os.getenv("SPARK_MASTER", "local[*]")
+SPARK_APP_NAME: str = os.getenv("SPARK_APP_NAME", "UberThinking")
+
+# --- File paths ---
+RAW_DATA_PATH: str = os.getenv("RAW_DATA_PATH", "data/raw/taxi_data.parquet")
+ZONE_LOOKUP_PATH: str = os.getenv("ZONE_LOOKUP_PATH", "data/zone_lookup/taxi_zone_lookup.csv")
+CHECKPOINT_PATH: str = os.getenv("CHECKPOINT_PATH", "output/checkpoints/")
+PARQUET_OUTPUT_PATH: str = os.getenv("PARQUET_OUTPUT_PATH", "output/parquet/")
+MODEL_PATH: str = os.getenv("MODEL_PATH", "models/fare_prediction")
+
+# Derived, commonly used sub-paths under PARQUET_OUTPUT_PATH.
+RIDES_OUTPUT_PATH: str = os.path.join(PARQUET_OUTPUT_PATH, "rides")
+AGGREGATES_OUTPUT_PATH: str = os.path.join(PARQUET_OUTPUT_PATH, "aggregates")
+RIDES_CHECKPOINT_PATH: str = os.path.join(CHECKPOINT_PATH, "rides")
+AGGREGATES_CHECKPOINT_PATH: str = os.path.join(CHECKPOINT_PATH, "aggregates")
+
+# --- Producer behavior ---
+PRODUCER_DELAY_SECONDS: float = _get_float("PRODUCER_DELAY_SECONDS", 0.5)

@@ -1,6 +1,6 @@
 # Architecture & Design Notes
 
-This document captures the reasoning behind TaxiPulse's structure, the
+This document captures the reasoning behind UberThinking's structure, the
 assumptions made when turning the original project brief into this
 blueprint, and notes on how to extend it.
 

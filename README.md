@@ -1,15 +1,15 @@
-# 🚕 TaxiPulse — Real-Time Ride Intelligence using Apache Spark
+# 🚕 UberThinking — Real-Time Ride Intelligence using Apache Spark
 
-TaxiPulse is a real-time analytics and fare-prediction platform built on the
+UberThinking is a real-time analytics and fare-prediction platform built on the
 Apache Spark ecosystem. It simulates a live taxi-dispatch data feed (in the
 style of Uber/Careem), processes it through Kafka and Spark Structured
 Streaming, stores curated results as Parquet, trains a fare-prediction model
 with Spark MLlib, and surfaces everything in an interactive Streamlit
 dashboard.
 
-This repository is a **project blueprint**: every file exists with the
-correct name, location, and responsibility, but contains guidance comments
-instead of implementation. Use it as a scaffold to build the working system.
+Every file in this repository is fully implemented and ready to run end to
+end — from the Kafka producer through Structured Streaming, ML training, and
+the Streamlit dashboard.
 
 ---
 
@@ -23,7 +23,7 @@ A ride-hailing operator needs to answer, in near real time:
 - How long are rides taking?
 - Can we estimate a fare *before* the ride starts?
 
-TaxiPulse continuously ingests ride events, processes and aggregates them,
+UberThinking continuously ingests ride events, processes and aggregates them,
 trains a predictive model offline, and visualizes both live and historical
 insight in one dashboard.
 
@@ -76,7 +76,7 @@ insight in one dashboard.
 ## 4. Project Structure
 
 ```text
-TaxiPulse/
+UberThinking/
 ├── README.md                  Project overview (this file)
 ├── LICENSE                    Open-source license
 ├── .gitignore                 Files/folders excluded from git
@@ -124,33 +124,110 @@ TaxiPulse/
     └── architecture.md        Deeper design notes & decisions
 ```
 
-## 5. Getting Started (once implemented)
+## 5. How to Use
+
+### 5.1 Prerequisites
+
+- Python 3.10 or 3.11
+- Java 11 (required by PySpark)
+- Docker + Docker Compose (optional — only needed if you don't already
+  have a Kafka broker to point at)
+
+### 5.2 Setup
 
 ```bash
 # 1. Clone and enter the repo
-git clone <repo-url> && cd TaxiPulse
+git clone https://github.com/ahmed-elsayid/UberThinking- && cd UberThinking-
 
-# 2. Create a virtual environment and install dependencies
-python -m venv .venv && source .venv/bin/activate
-pip install -r requirements.txt
+# 2. Create a virtual environment
+python -m venv .venv
+source .venv/bin/activate        # Windows: .venv\Scripts\activate
 
-# 3. Copy environment config
+# 3. Install dependencies (pinned in pyproject.toml)
+pip install -e ".[test]"
+
+# 4. Copy environment config and adjust if needed
 cp .env.example .env
+```
 
-# 4. Start Kafka locally (optional, via Docker)
+### 5.3 Get the data
+
+1. Download one month of NYC TLC "Yellow Taxi Trip Records" (Parquet or
+   CSV) from the official TLC Trip Record Data page and place it under
+   `data/raw/` (see `data/raw/README.md`). Point `RAW_DATA_PATH` in `.env`
+   at the file if the name differs from the default.
+2. Download `taxi_zone_lookup.csv` (also published by TLC) into
+   `data/zone_lookup/` (see `data/zone_lookup/README.md`).
+
+### 5.4 Start Kafka
+
+Use the bundled Docker Compose setup, or point at any Kafka broker you
+already have:
+
+```bash
 docker compose -f docker/docker-compose.yml up -d
 
-# 5. Run the producer (in one terminal)
-python producer/kafka_producer.py
+# Create the taxi_rides topic
+./scripts/setup_kafka_topic.sh
+```
 
-# 6. Run the Spark streaming consumer (in another terminal)
+Kafka UI (topic inspector) is available at http://localhost:8080 once the
+containers are up.
+
+### 5.5 Run the pipeline
+
+Each of these runs in its own terminal, in order:
+
+```bash
+# Terminal 1 — start the Spark Structured Streaming consumer first, so it's
+# ready to receive events as soon as the producer starts sending them
 python streaming/spark_stream_consumer.py
 
-# 7. Train the fare-prediction model
-python ml/train_model.py
+# Terminal 2 — replay historical rides onto the Kafka topic as a live feed
+python producer/kafka_producer.py
+```
 
-# 8. Launch the dashboard
+The consumer writes cleaned ride-level rows to `output/parquet/rides/` and
+refreshed aggregate snapshots to `output/parquet/aggregates/` as data
+arrives. Let it run for at least a few minutes so there's data to look at.
+
+### 5.6 Train the fare-prediction model
+
+Once some ride data exists (either from the streaming run above or the raw
+dataset directly), train and persist the model:
+
+```bash
+python ml/train_model.py
+```
+
+This prints RMSE/MAE on a held-out test split and saves the fitted
+pipeline to `models/fare_prediction`.
+
+### 5.7 Launch the dashboard
+
+```bash
 streamlit run dashboard/app.py
+```
+
+Then open the URL Streamlit prints (default `http://localhost:8501`) and
+use the sidebar to navigate between pages:
+
+| Page | What it shows |
+|------|----------------|
+| **Overview** | Total trips, revenue, average fare/duration, trips-per-hour and payment-type charts |
+| **Location Analytics** | Top pickup/dropoff zones, with borough/zone names from `data/zone_lookup/` |
+| **Ride Explorer** | Filterable table of individual cleaned rides (date range, passenger count, payment type, zone) |
+| **Prediction** | Enter trip distance, passenger count, pickup hour, and zones to get a predicted fare from the trained model |
+| **Streaming Monitor** | Near-real-time view of pipeline activity (trips per 5-minute window, most recent ride, manual/auto-refresh) |
+
+If a page shows a "no data yet" warning, the streaming consumer/producer
+haven't produced output yet, or (for Prediction) the model hasn't been
+trained yet.
+
+### 5.8 Run the tests
+
+```bash
+pytest
 ```
 
 ## 6. Team Task Distribution (suggested, 4 members)

@@ -1,0 +1,39 @@
+[project]
+name = "uberthinking"
+version = "0.1.0"
+description = "UberThinking — Real-Time Ride Intelligence using Apache Spark, Kafka, and Streamlit"
+readme = "README.md"
+requires-python = ">=3.10,<3.13"
+license = { text = "MIT" }
+
+dependencies = [
+    "pyspark==3.5.1",
+    "kafka-python==2.0.2",
+    "streamlit==1.37.1",
+    "plotly==5.23.0",
+    "pandas==2.2.2",
+    "python-dotenv==1.0.1",
+    "pyarrow==16.1.0",
+]
+
+[project.optional-dependencies]
+test = [
+    "pytest==8.3.2",
+]
+delta = [
+    "delta-spark==3.2.0",
+]
+
+[build-system]
+requires = ["setuptools>=68.0"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+packages = [
+    "config",
+    "streaming",
+    "preprocessing",
+    "analytics",
+    "producer",
+    "ml",
+]
