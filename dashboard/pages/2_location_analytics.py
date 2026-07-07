@@ -23,14 +23,6 @@ Dependencies:
     - pandas
 """
 
-# TODO: load zone aggregates -> render top-N bar charts and/or map.
-
-"""
-2_location_analytics.py
-------------------------
-Dashboard page focused on geographic/zone-level ride patterns: top
-pickup/dropoff zones, using data/zone_lookup/ names for readability.
-"""
 
 import os
 import sys

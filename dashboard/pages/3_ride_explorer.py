@@ -25,14 +25,6 @@ Dependencies:
     - pandas
 """
 
-# TODO: render filter widgets -> filter dataframe -> st.dataframe(...)
-
-"""
-3_ride_explorer.py
--------------------
-Dashboard page letting users explore individual cleaned ride records with
-filters, for ad hoc investigation. Reads output/parquet/rides/.
-"""
 
 import os
 import sys

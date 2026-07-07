@@ -37,3 +37,18 @@ models/*
 
 # Jupyter
 .ipynb_checkpoints/
+
+
+# Spark outputs
+output/
+
+# Or, if you want to keep output/ but ignore generated data:
+output/checkpoints/
+output/parquet/
+
+# Hadoop checksum files
+*.crc
+
+# Spark temporary files
+.metastore_db/
+spark-warehouse/

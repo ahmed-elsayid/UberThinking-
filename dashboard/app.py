@@ -31,20 +31,6 @@ Run:
     streamlit run dashboard/app.py
 """
 
-# TODO: st.set_page_config(...); render landing content.
-
-
-"""
-app.py
-------
-Entry point for the Streamlit multipage dashboard. Streamlit automatically
-turns every file in dashboard/pages/ into a page in the sidebar
-navigation, so this file mainly sets shared/global config and a landing
-screen.
-
-Run:
-    streamlit run dashboard/app.py
-"""
 
 import os
 import sys

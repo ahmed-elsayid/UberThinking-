@@ -28,23 +28,6 @@ Note:
     docs/architecture.md.
 """
 
-# TODO: implement periodic/refresh-based loading of latest metrics.
-
-
-"""
-5_streaming_monitor.py
-------------------------
-Dashboard page showing "live" streaming health/activity — the closest
-thing to a real-time monitor within Streamlit's request/response model.
-
-Note on real-time limitations:
-    Streamlit has no native push-based real-time updates; every page
-    render is a fresh script run triggered by user interaction or a
-    refresh. This page uses a manual "Refresh now" button plus an
-    optional timed auto-refresh (via a short `time.sleep` + `st.rerun`
-    loop, capped to avoid runaway reruns) as the polling strategy. This
-    tradeoff is documented in docs/architecture.md.
-"""
 
 import os
 import sys

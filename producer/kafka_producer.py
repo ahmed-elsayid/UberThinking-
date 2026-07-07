@@ -114,17 +114,22 @@ def _read_raw_rows(path: str) -> Iterator[dict]:
     with keys already normalized to the producer's JSON schema.
     """
     if path.endswith(".parquet"):
-        df = pd.read_parquet(path)
+        import pyarrow.parquet as pq
+        parquet_file = pq.ParquetFile(path)
+        for batch in parquet_file.iter_batches(batch_size=1000):
+            df = batch.to_pandas()
+            rename_map = {c: _COLUMN_ALIASES[c] for c in df.columns if c in _COLUMN_ALIASES}
+            df = df.rename(columns=rename_map)
+            df = df[[c for c in _COLUMN_ALIASES.values() if c in df.columns]]
+            for _, row in df.iterrows():
+                yield row.to_dict()
     else:
         df = pd.read_csv(path)
-
-    # Keep only known columns, renamed to the target JSON keys.
-    rename_map = {c: _COLUMN_ALIASES[c] for c in df.columns if c in _COLUMN_ALIASES}
-    df = df.rename(columns=rename_map)
-    df = df[[c for c in _COLUMN_ALIASES.values() if c in df.columns]]
-
-    for _, row in df.iterrows():
-        yield row.to_dict()
+        rename_map = {c: _COLUMN_ALIASES[c] for c in df.columns if c in _COLUMN_ALIASES}
+        df = df.rename(columns=rename_map)
+        df = df[[c for c in _COLUMN_ALIASES.values() if c in df.columns]]
+        for _, row in df.iterrows():
+            yield row.to_dict()
 
 
 def _build_message(row: dict) -> dict:

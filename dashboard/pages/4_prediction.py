@@ -25,15 +25,6 @@ Dependencies:
     - ml/predict.py
 """
 
-# TODO: render input widgets -> call predict_fare(...) -> display result.
-
-
-"""
-4_prediction.py
-----------------
-Dashboard page where a user enters ride details and receives a predicted
-fare from the trained ML model (ml/predict.py).
-"""
 
 import os
 import sys

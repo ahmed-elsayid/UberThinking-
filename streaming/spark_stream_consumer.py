@@ -75,10 +75,7 @@ Run:
 
 import os
 
-from pyspark.sql import DataFrame, SparkSession
-from pyspark.sql import functions as F
-
-from analytics.analytics import compute_aggregations
+# Load config (and .env) FIRST so HADOOP_HOME is in os.environ before PySpark starts
 from config.config import (
     AGGREGATES_OUTPUT_PATH,
     KAFKA_BOOTSTRAP_SERVERS,
@@ -88,6 +85,16 @@ from config.config import (
     SPARK_APP_NAME,
     SPARK_MASTER,
 )
+
+# On Windows, PySpark requires hadoop.dll to be in the PATH.
+if os.name == "nt" and "HADOOP_HOME" in os.environ:
+    hadoop_bin = os.path.join(os.environ["HADOOP_HOME"], "bin")
+    os.environ["PATH"] += os.pathsep + hadoop_bin
+
+from pyspark.sql import DataFrame, SparkSession
+from pyspark.sql import functions as F
+
+from analytics.analytics import compute_aggregations
 from preprocessing.cleaning import clean_and_engineer
 from streaming.schema import RIDE_SCHEMA
 

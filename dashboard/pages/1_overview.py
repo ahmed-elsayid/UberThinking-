@@ -27,16 +27,6 @@ Dependencies:
     - pandas (for reading Parquet into a small in-memory frame for display)
 """
 
-# TODO: load aggregates -> render st.metric(...) cards + plotly charts.
-
-
-"""
-1_overview.py
--------------
-Dashboard page showing high-level KPIs and charts summarizing overall ride
-activity, sourced from output/parquet/aggregates/ (written by
-streaming/spark_stream_consumer.py + analytics/analytics.py).
-"""
 
 import os
 import sys
