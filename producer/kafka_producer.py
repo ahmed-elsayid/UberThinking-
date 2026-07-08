@@ -1,58 +1,6 @@
 """
 kafka_producer.py
 ------------------
-Purpose:
-    Reads historical taxi ride rows from data/raw/ and streams them, one
-    at a time, to a Kafka topic — simulating a live feed of taxi rides
-    arriving in real time (rather than replaying the whole dataset at once).
-
-Responsibilities:
-    - Read rows sequentially from the raw dataset (e.g., via pandas or a
-      simple file iterator — this file should NOT depend on Spark).
-    - Convert each row into a JSON message matching the schema expected by
-      streaming/schema.py.
-    - Publish each JSON message to the Kafka topic named in config
-      (KAFKA_TOPIC).
-    - Sleep for PRODUCER_DELAY_SECONDS between messages to simulate
-      realistic ride arrival timing.
-    - Handle basic errors (e.g., malformed rows) by logging and skipping.
-
-Expected input:
-    - File at RAW_DATA_PATH (see config/config.py).
-
-Expected output:
-    - JSON messages published to Kafka topic KAFKA_TOPIC, e.g.:
-        {
-          "pickup_datetime": "2024-05-01T10:05:00",
-          "dropoff_datetime": "2024-05-01T10:21:00",
-          "trip_distance": 6.5,
-          "pickup_location_id": 142,
-          "dropoff_location_id": 236,
-          "fare_amount": 18.3,
-          "tip_amount": 3.2,
-          "passenger_count": 2,
-          "payment_type": "Card"
-        }
-
-Dependencies:
-    - kafka-python (KafkaProducer)
-    - pandas (or csv/pyarrow) for reading raw data
-    - config/config.py
-
-Run:
-    python producer/kafka_producer.py
-"""
-
-# TODO: implement producer loop:
-#   1. Load config.
-#   2. Open raw data file as an iterator.
-#   3. For each row -> build dict -> json.dumps -> producer.send(topic, value)
-#   4. time.sleep(PRODUCER_DELAY_SECONDS)
-
-
-"""
-kafka_producer.py
-------------------
 Reads historical taxi ride rows from data/raw/ and streams them, one at a
 time, to a Kafka topic — simulating a live feed of taxi rides arriving in
 real time. Deliberately Spark-free; uses pandas for reading and
@@ -62,10 +10,12 @@ Run:
     python producer/kafka_producer.py
 """
 
+import glob
 import json
 import logging
+import os
 import time
-from typing import Iterator
+from typing import Iterator, List
 
 import pandas as pd
 from kafka import KafkaProducer
@@ -108,28 +58,119 @@ _COLUMN_ALIASES = {
     "payment_type": "payment_type",
 }
 
+# Target JSON keys a source file must provide (after aliasing) to be usable
+# by the downstream pipeline. A file whose columns don't cover all of these
+# is skipped rather than streamed as mostly-null rows. (e.g. the pre-2016
+# TLC schema has no LocationID columns and is skipped here.)
+_REQUIRED_COLUMNS = [
+    "pickup_datetime",
+    "dropoff_datetime",
+    "trip_distance",
+    "fare_amount",
+    "pickup_location_id",
+    "dropoff_location_id",
+    "passenger_count",
+    "payment_type",
+]
 
-def _read_raw_rows(path: str) -> Iterator[dict]:
-    """Reads the raw dataset (Parquet or CSV) and yields one dict per row,
-    with keys already normalized to the producer's JSON schema.
+# Supported raw file extensions when scanning a directory.
+_SUPPORTED_EXTENSIONS = (".parquet", ".csv")
+
+
+def _iter_source_files(path: str) -> List[str]:
+    """Returns the raw data files to read.
+
+    If `path` is a directory, returns every supported (.parquet/.csv) file
+    inside it, searched recursively and sorted for deterministic order. If
+    `path` is a single file, returns just that file.
+    """
+    if os.path.isdir(path):
+        files: List[str] = []
+        for ext in _SUPPORTED_EXTENSIONS:
+            files.extend(glob.glob(os.path.join(path, "**", f"*{ext}"), recursive=True))
+        return sorted(files)
+    return [path]
+
+
+def _source_columns(path: str) -> List[str]:
+    """Returns the column names of a raw file cheaply, without loading all
+    rows (reads Parquet metadata / only the CSV header).
     """
     if path.endswith(".parquet"):
         import pyarrow.parquet as pq
+
+        return list(pq.ParquetFile(path).schema_arrow.names)
+    return list(pd.read_csv(path, nrows=0).columns)
+
+
+def _fits_requirements(source_columns: List[str]) -> bool:
+    """True if a file's columns, once aliased, cover every required column."""
+    aliased = {_COLUMN_ALIASES[c] for c in source_columns if c in _COLUMN_ALIASES}
+    return all(col in aliased for col in _REQUIRED_COLUMNS)
+
+
+def _normalize_frame(df: pd.DataFrame) -> pd.DataFrame:
+    """Renames source columns to the producer's JSON keys and keeps only the
+    known target columns (deduplicated, since several source names can alias
+    to the same target).
+    """
+    rename_map = {c: _COLUMN_ALIASES[c] for c in df.columns if c in _COLUMN_ALIASES}
+    df = df.rename(columns=rename_map)
+    target_cols = list(dict.fromkeys(_COLUMN_ALIASES.values()))
+    return df[[c for c in target_cols if c in df.columns]]
+
+
+def _read_file_rows(path: str) -> Iterator[dict]:
+    """Yields normalized row dicts from a single Parquet/CSV file, reading
+    Parquet in batches to keep memory bounded on large files.
+    """
+    if path.endswith(".parquet"):
+        import pyarrow.parquet as pq
+
         parquet_file = pq.ParquetFile(path)
         for batch in parquet_file.iter_batches(batch_size=1000):
-            df = batch.to_pandas()
-            rename_map = {c: _COLUMN_ALIASES[c] for c in df.columns if c in _COLUMN_ALIASES}
-            df = df.rename(columns=rename_map)
-            df = df[[c for c in _COLUMN_ALIASES.values() if c in df.columns]]
+            df = _normalize_frame(batch.to_pandas())
             for _, row in df.iterrows():
                 yield row.to_dict()
     else:
-        df = pd.read_csv(path)
-        rename_map = {c: _COLUMN_ALIASES[c] for c in df.columns if c in _COLUMN_ALIASES}
-        df = df.rename(columns=rename_map)
-        df = df[[c for c in _COLUMN_ALIASES.values() if c in df.columns]]
+        df = _normalize_frame(pd.read_csv(path))
         for _, row in df.iterrows():
             yield row.to_dict()
+
+
+def _read_raw_rows(path: str) -> Iterator[dict]:
+    """Reads the raw data source (a single Parquet/CSV file, or a directory
+    containing many of them) and yields one dict per row, normalized to the
+    producer's JSON schema. Files whose schema doesn't meet the required
+    columns are logged and skipped.
+    """
+    files = _iter_source_files(path)
+    if not files:
+        logger.warning("No .parquet/.csv files found at %s", path)
+        return
+
+    used = 0
+    for file_path in files:
+        try:
+            columns = _source_columns(file_path)
+        except Exception as exc:
+            logger.warning("Skipping unreadable file %s: %s", file_path, exc)
+            continue
+
+        if not _fits_requirements(columns):
+            missing = [
+                c
+                for c in _REQUIRED_COLUMNS
+                if c not in {_COLUMN_ALIASES[s] for s in columns if s in _COLUMN_ALIASES}
+            ]
+            logger.warning("Skipping %s: missing required columns %s", file_path, missing)
+            continue
+
+        used += 1
+        logger.info("Streaming rows from %s", file_path)
+        yield from _read_file_rows(file_path)
+
+    logger.info("Used %d of %d source file(s) under %s", used, len(files), path)
 
 
 def _build_message(row: dict) -> dict:

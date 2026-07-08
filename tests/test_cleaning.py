@@ -1,34 +1,6 @@
 """
 test_cleaning.py
 -----------------
-Purpose:
-    Unit tests for preprocessing/cleaning.py — verifies that invalid rows
-    are removed and derived columns are computed correctly.
-
-Suggested test cases:
-    - test_removes_null_critical_fields: rows missing pickup/dropoff time,
-      fare, or distance are dropped.
-    - test_removes_negative_fare: rows with fare_amount < 0 are dropped.
-    - test_removes_negative_distance: rows with trip_distance < 0 are dropped.
-    - test_removes_duplicate_rides: exact duplicate rows are deduplicated.
-    - test_ride_duration_calculation: ride_duration_minutes matches
-      (dropoff - pickup) in minutes for a known input.
-    - test_average_speed_calculation: average_speed_mph matches
-      distance / duration for a known input.
-    - test_pickup_hour_and_weekend_flags: pickup_hour, is_weekend derived
-      correctly from a known pickup_datetime.
-
-Dependencies:
-    - pytest
-    - pyspark (a local SparkSession fixture, scope="module")
-"""
-
-# TODO: implement fixtures + test functions described above.
-
-
-"""
-test_cleaning.py
------------------
 Unit tests for preprocessing/cleaning.py — verifies that invalid rows are
 removed and derived columns are computed correctly.
 """
@@ -38,8 +10,33 @@ import tempfile
 
 import pytest
 from pyspark.sql import Row, SparkSession
+from pyspark.sql.types import (
+    DoubleType,
+    LongType,
+    StringType,
+    StructField,
+    StructType,
+)
 
 from preprocessing.cleaning import clean_and_engineer
+
+# Explicit schema so rows with a null column (e.g. pickup_datetime=None) still
+# get a concrete type — Spark can't infer a type from an all-null column and
+# raises CANNOT_DETERMINE_TYPE. Production data is always typed (RIDE_SCHEMA /
+# parquet), so this mirrors real inputs.
+_TEST_SCHEMA = StructType(
+    [
+        StructField("pickup_datetime", StringType(), True),
+        StructField("dropoff_datetime", StringType(), True),
+        StructField("trip_distance", DoubleType(), True),
+        StructField("pickup_location_id", LongType(), True),
+        StructField("dropoff_location_id", LongType(), True),
+        StructField("fare_amount", DoubleType(), True),
+        StructField("tip_amount", DoubleType(), True),
+        StructField("passenger_count", LongType(), True),
+        StructField("payment_type", StringType(), True),
+    ]
+)
 
 
 @pytest.fixture(scope="module")
@@ -68,7 +65,7 @@ def zone_lookup_path():
 
 
 def _make_rows(spark, rows):
-    return spark.createDataFrame([Row(**r) for r in rows])
+    return spark.createDataFrame([Row(**r) for r in rows], schema=_TEST_SCHEMA)
 
 
 BASE_ROW = {

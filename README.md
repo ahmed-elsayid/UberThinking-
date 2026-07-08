@@ -126,12 +126,54 @@ UberThinking/
 
 ## 5. How to Use
 
+### 5.0 Quick start — run the whole app
+
+Once you've done the one-time **Setup** (5.2), **Windows notes** (5.2a) and
+**data download** (5.3), this is the full end-to-end run. Activate the venv
+first (`.venv\Scripts\activate` on Windows), then, from the project root:
+
+```bash
+# 1. Start Kafka (Kafka + Zookeeper + Kafka UI) in the background
+docker compose -f docker/docker-compose.yml up -d
+
+# 2. Terminal A — Spark Structured Streaming consumer (start this FIRST)
+python streaming/spark_stream_consumer.py
+
+# 3. Terminal B — replay historical rides onto Kafka as a live feed
+python producer/kafka_producer.py
+
+# 4. (after a minute or two of data) Terminal C — train the fare model
+python ml/train_model.py
+
+# 5. Terminal D — launch the dashboard
+streamlit run dashboard/app.py
+```
+
+> On Windows PowerShell each `python`/`streamlit` command runs in its own
+> terminal window and stays in the foreground — open a new terminal for each
+> step rather than chaining them. Spark takes ~30–60s to boot on the first
+> micro-batch; that's normal.
+
+**How to see the output:**
+
+| What | Where |
+|------|-------|
+| **Dashboard** (all charts, KPIs, prediction, live monitor) | http://localhost:8501 |
+| **Kafka UI** (watch raw `taxi_rides` messages arrive) | http://localhost:8080 |
+| Cleaned ride-level data on disk | `output/parquet/rides/` |
+| Aggregate metric snapshots on disk | `output/parquet/aggregates/` |
+| Trained model + printed RMSE/MAE | `models/fare_prediction` |
+
+Steps 2–5 are detailed individually in 5.4–5.7 below.
+
 ### 5.1 Prerequisites
 
 - Python 3.10 or 3.11
 - Java 11 (required by PySpark)
 - Docker + Docker Compose (optional — only needed if you don't already
   have a Kafka broker to point at)
+- **Windows only:** see 5.2a below before running anything that starts
+  Spark — PySpark needs a Hadoop helper binary that Windows doesn't ship.
 
 ### 5.2 Setup
 
@@ -150,6 +192,31 @@ pip install -e ".[test]"
 cp .env.example .env
 ```
 
+### 5.2a Windows setup notes (winutils.exe)
+
+PySpark bundles Hadoop client libraries that, on Windows, need
+`winutils.exe` and `hadoop.dll` to work — without them, any script that
+creates a `SparkSession` (the streaming consumer, `ml/train_model.py`, the
+dashboard's Prediction page) fails during `SparkContext` init with
+`HADOOP_HOME and hadoop.home.dir are unset`. This happens before Spark
+ever touches Kafka, so it can look like a Kafka problem when it isn't.
+
+To fix it:
+
+1. Download the `winutils.exe` and `hadoop.dll` matching Hadoop 3.3.x from
+   a trusted mirror, e.g. https://github.com/cdarlint/winutils (pick the
+   `hadoop-3.3.4` or `hadoop-3.3.5` folder — either works with PySpark 3.5.1).
+2. Put both files in a folder like `C:\hadoop\bin\`.
+3. Set `HADOOP_HOME=C:\hadoop` in your `.env` file (this repo's
+   `config/config.py` picks it up automatically and adds `%HADOOP_HOME%\bin`
+   to `PATH` before Spark starts — no manual system-wide env var needed).
+4. Also copy `hadoop.dll` into `C:\Windows\System32` if you still see
+   `UnsatisfiedLinkError` after step 3.
+
+`config/config.py` also automatically points `PYSPARK_PYTHON` /
+`PYSPARK_DRIVER_PYTHON` at your venv's `python.exe`, which fixes the
+related `Missing Python executable 'python3'` warning.
+
 ### 5.3 Get the data
 
 1. Download one month of NYC TLC "Yellow Taxi Trip Records" (Parquet or
@@ -161,18 +228,25 @@ cp .env.example .env
 
 ### 5.4 Start Kafka
 
-Use the bundled Docker Compose setup, or point at any Kafka broker you
-already have:
+Use the bundled Docker Compose setup (Kafka + Zookeeper + Kafka UI), or
+point at any Kafka broker you already have:
 
 ```bash
 docker compose -f docker/docker-compose.yml up -d
-
-# Create the taxi_rides topic
-./scripts/setup_kafka_topic.sh
 ```
 
+The `taxi_rides` topic is created automatically the first time the producer
+sends to it (`KAFKA_AUTO_CREATE_TOPICS_ENABLE=true` in the compose file), so
+there is no separate topic-creation step. `scripts/setup_kafka_topic.md`
+documents how to create it explicitly if you'd rather not rely on
+auto-create.
+
 Kafka UI (topic inspector) is available at http://localhost:8080 once the
-containers are up.
+containers are up. Stop the stack later with:
+
+```bash
+docker compose -f docker/docker-compose.yml down
+```
 
 ### 5.5 Run the pipeline
 

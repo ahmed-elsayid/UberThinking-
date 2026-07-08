@@ -1,34 +1,3 @@
-# ---------------------------------------------------------------------------
-# docker-compose.yml
-# Purpose: Spin up a local Kafka + Zookeeper environment for development,
-# so the team does not depend on a shared/remote broker.
-#
-# This file is intentionally a PLACEHOLDER — no working service definitions
-# are included. When implementing, define:
-#
-#   services:
-#     zookeeper:
-#       image: confluentinc/cp-zookeeper (or bitnami/zookeeper)
-#       - expose the client port (2181)
-#       - set required env vars (ZOOKEEPER_CLIENT_PORT, etc.)
-#
-#     kafka:
-#       image: confluentinc/cp-kafka (or bitnami/kafka)
-#       - depends_on: zookeeper
-#       - expose broker port (9092) to the host, matching
-#         KAFKA_BOOTSTRAP_SERVERS in .env
-#       - set advertised listeners for local access
-#
-#   (optional) kafka-ui or kafdrop:
-#     - a lightweight web UI to inspect topics/messages while debugging
-#
-# Dependencies: Docker + Docker Compose installed locally.
-# Usage (once implemented): `docker compose -f docker/docker-compose.yml up -d`
-# ---------------------------------------------------------------------------
-
-
-version: "3.8"
-
 # Local Kafka + Zookeeper environment for development. Matches the default
 # KAFKA_BOOTSTRAP_SERVERS=localhost:9092 in .env.example.
 #
