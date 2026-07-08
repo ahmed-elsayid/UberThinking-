@@ -1,0 +1,11 @@
+.venv/
+venv/
+.git/
+__pycache__/
+*.pyc
+output/
+models/
+data/stream/
+.idea/
+.vscode/
+.pytest_cache/

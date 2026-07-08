@@ -1,65 +1,70 @@
 """
-app.py
-------
-Entry point for the Streamlit multipage dashboard. Streamlit turns every
-file in dashboard/pages/ into a sidebar page, so this file just sets global
-config, a shared cached Parquet loader, and a landing screen.
+app.py  —  Page 1: Dashboard
+----------------------------
+Shows the overall KPIs and a live incoming-ride counter. Reads the rides
+Parquet folder that the streaming job keeps appending to.
 
 Run:
     streamlit run dashboard/app.py
 """
 
-
 import os
 import sys
 
-# Streamlit only adds this script's own directory to sys.path, not the
-# project root, so add the root explicitly for `config`/`ml` imports.
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+# Let this file import the modules that live in src/.
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "src")))
 
 import pandas as pd
 import streamlit as st
 
-st.set_page_config(
-    page_title="UberThinking",
-    page_icon="🚕",
-    layout="wide",
-)
+from config import RIDES_OUTPUT_PATH
+
+st.set_page_config(page_title="UberThinking", page_icon="🚕", layout="wide")
 
 
-@st.cache_data(ttl=30)
-def load_parquet_dir(path: str) -> pd.DataFrame:
-    """Cached helper: reads a Parquet directory into a pandas DataFrame.
-    Shared across pages via `from dashboard.app import load_parquet_dir`.
-    Returns an empty DataFrame if the path doesn't exist yet (e.g. before
-    the streaming job has produced any output).
-    """
+@st.cache_data(ttl=5)
+def load_rides() -> pd.DataFrame:
+    """Reads all cleaned rides written by the streaming job (empty if none yet)."""
     try:
-        return pd.read_parquet(path)
+        return pd.read_parquet(RIDES_OUTPUT_PATH)
     except Exception:
         return pd.DataFrame()
 
 
-def main() -> None:
-    st.title("🚕 UberThinking — Real-Time Ride Intelligence")
-    st.markdown(
-        """
-        UberThinking simulates a live taxi-dispatch feed, processes it through
-        Kafka and Spark Structured Streaming, and surfaces the results
-        here. Use the sidebar to navigate:
+st.title("🚕 UberThinking — Dashboard")
+st.caption("Live taxi analytics powered by Spark Structured Streaming.")
 
-        - **Overview** — high-level KPIs and charts for overall ride activity.
-        - **Location Analytics** — busiest pickup/dropoff zones.
-        - **Ride Explorer** — filter and browse individual cleaned rides.
-        - **Prediction** — estimate a fare before a ride starts.
-        - **Streaming Monitor** — near-real-time pipeline activity.
-        """
-    )
-    st.info(
-        "Data shown across these pages is produced by "
-        "`streaming/spark_stream_consumer.py`. Start the producer and "
-        "consumer first if pages appear empty."
-    )
+if st.button("🔄 Refresh"):
+    st.cache_data.clear()
 
+rides = load_rides()
 
-main()
+if rides.empty:
+    st.warning("No rides yet. Start generate_stream.py and streaming_job.py, then refresh.")
+    st.stop()
+
+# --- Overall KPIs ---
+total_trips = len(rides)
+total_revenue = rides["fare_amount"].sum()
+average_fare = rides["fare_amount"].mean()
+average_duration = rides["ride_duration_minutes"].mean()
+
+# Live incoming = how many new rides appeared since the last time this page ran.
+previous_total = st.session_state.get("previous_total", total_trips)
+live_incoming = max(total_trips - previous_total, 0)
+st.session_state["previous_total"] = total_trips
+
+c1, c2, c3, c4, c5 = st.columns(5)
+c1.metric("Total Trips", f"{total_trips:,}")
+c2.metric("Total Revenue", f"${total_revenue:,.0f}")
+c3.metric("Average Fare", f"${average_fare:,.2f}")
+c4.metric("Avg Trip Duration", f"{average_duration:.1f} min")
+c5.metric("Live Incoming Rides", f"+{live_incoming}")
+
+st.divider()
+st.subheader("Most Recent Rides")
+recent = rides.sort_values("pickup_datetime", ascending=False).head(10)
+st.dataframe(
+    recent[["pickup_datetime", "pickup_zone", "dropoff_zone", "trip_distance", "fare_amount"]],
+    use_container_width=True,
+)
