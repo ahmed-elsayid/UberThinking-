@@ -1,0 +1,14 @@
+# Streamlit theme — UberThinking (neutral SaaS base, refined taxi-amber accent).
+[theme]
+base = "light"
+primaryColor = "#DE9A0E"
+backgroundColor = "#F7F8FA"
+secondaryBackgroundColor = "#F3F5F9"
+textColor = "#161A2B"
+font = "sans serif"
+
+[client]
+toolbarMode = "minimal"
+
+[ui]
+hideTopBar = false
